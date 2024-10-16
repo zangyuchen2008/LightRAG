@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from functools import partial
 from typing import Type, cast, Any
-from transformers import AutoModel,AutoTokenizer, AutoModelForCausalLM
+# from transformers import AutoModel,AutoTokenizer, AutoModelForCausalLM
 
 from .llm import gpt_4o_complete, gpt_4o_mini_complete, openai_embedding,hf_model_complete,hf_embedding
 from .operate import (

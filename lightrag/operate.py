@@ -386,7 +386,7 @@ async def local_query(
     text_chunks_db: BaseKVStorage[TextChunkSchema],
     query_param: QueryParam,
     global_config: dict,
-) -> str:
+) -> dict:  # Changed return type to dict
     use_model_func = global_config["llm_model_func"]
 
     kw_prompt_temp = PROMPTS["keywords_extraction"]
@@ -406,7 +406,7 @@ async def local_query(
         # Handle parsing error
         except json.JSONDecodeError as e:
             print(f"JSON parsing error: {e}")
-            return PROMPTS["fail_response"]
+            return {"context": None, "response": PROMPTS["fail_response"]}  # Return dict with fail response
     context = await _build_local_query_context(
         keywords,
         knowledge_graph_inst,
@@ -415,9 +415,10 @@ async def local_query(
         query_param,
     )
     if query_param.only_need_context:
-        return context
+        return {"context": context, "response": None}  # Return dict with context
     if context is None:
-        return PROMPTS["fail_response"]
+        return {"context": None, "response": PROMPTS["fail_response"]}  # Return dict with fail response
+    
     sys_prompt_temp = PROMPTS["rag_response"]
     sys_prompt = sys_prompt_temp.format(
         context_data=context, response_type=query_param.response_type
@@ -429,7 +430,7 @@ async def local_query(
     if len(response)>len(sys_prompt):
         response = response.replace(sys_prompt,'').replace('user','').replace('model','').replace(query,'').replace('<system>','').replace('</system>','').strip()
     
-    return response
+    return {"context": context, "response": response}  # Return dict with context and response
 
 async def _build_local_query_context(
     query,
@@ -613,7 +614,7 @@ async def global_query(
     text_chunks_db: BaseKVStorage[TextChunkSchema],
     query_param: QueryParam,
     global_config: dict,
-) -> str:
+) -> dict:  # Changed return type to dict
     use_model_func = global_config["llm_model_func"]
 
     kw_prompt_temp = PROMPTS["keywords_extraction"]
@@ -634,7 +635,7 @@ async def global_query(
         except json.JSONDecodeError as e:
             # Handle parsing error
             print(f"JSON parsing error: {e}")
-            return PROMPTS["fail_response"]
+            return {"context": None, "response": PROMPTS["fail_response"]}  # Return dict with fail response
 
     context = await _build_global_query_context(
         keywords,
@@ -646,9 +647,9 @@ async def global_query(
     )
    
     if query_param.only_need_context:
-        return context
+        return {"context": context, "response": None}  # Return dict with context
     if context is None:
-        return PROMPTS["fail_response"]
+        return {"context": None, "response": PROMPTS["fail_response"]}  # Return dict with fail response
     
     sys_prompt_temp = PROMPTS["rag_response"]
     sys_prompt = sys_prompt_temp.format(
@@ -661,7 +662,7 @@ async def global_query(
     if len(response)>len(sys_prompt):
         response = response.replace(sys_prompt,'').replace('user','').replace('model','').replace(query,'').replace('<system>','').replace('</system>','').strip()
     
-    return response
+    return {"context": context, "response": response}  # Return dict with context and response
 
 async def _build_global_query_context(
     keywords,
@@ -835,7 +836,7 @@ async def hybrid_query(
     text_chunks_db: BaseKVStorage[TextChunkSchema],
     query_param: QueryParam,
     global_config: dict,
-) -> str:
+) -> dict:  # Changed return type to dict
     use_model_func = global_config["llm_model_func"]
 
     kw_prompt_temp = PROMPTS["keywords_extraction"]
@@ -859,7 +860,7 @@ async def hybrid_query(
         # Handle parsing error
         except json.JSONDecodeError as e:
             print(f"JSON parsing error: {e}")
-            return PROMPTS["fail_response"]
+            return {"context": None, "response": PROMPTS["fail_response"]}  # Return dict with fail response
 
     low_level_context = await _build_local_query_context(
         ll_keywords,
@@ -881,9 +882,9 @@ async def hybrid_query(
     context = combine_contexts(high_level_context, low_level_context)
 
     if query_param.only_need_context:
-        return context
+        return {"context": context, "response": None}  # Return dict with context
     if context is None:
-        return PROMPTS["fail_response"]
+        return {"context": None, "response": PROMPTS["fail_response"]}  # Return dict with fail response
     
     sys_prompt_temp = PROMPTS["rag_response"]
     sys_prompt = sys_prompt_temp.format(
@@ -895,7 +896,7 @@ async def hybrid_query(
     )
     if len(response)>len(sys_prompt):
         response = response.replace(sys_prompt,'').replace('user','').replace('model','').replace(query,'').replace('<system>','').replace('</system>','').strip()
-    return response
+    return {"context": context, "response": response}  # Return dict with context and response
 
 def combine_contexts(high_level_context, low_level_context):
     # Function to extract entities, relationships, and sources from context strings
@@ -957,11 +958,11 @@ async def naive_query(
     text_chunks_db: BaseKVStorage[TextChunkSchema],
     query_param: QueryParam,
     global_config: dict,
-):
+) -> dict:  # Changed return type to dict
     use_model_func = global_config["llm_model_func"]
     results = await chunks_vdb.query(query, top_k=query_param.top_k)
     if not len(results):
-        return PROMPTS["fail_response"]
+        return {"context": None, "response": PROMPTS["fail_response"]}  # Return dict with fail response
     chunks_ids = [r["id"] for r in results]
     chunks = await text_chunks_db.get_by_ids(chunks_ids)
 
@@ -973,7 +974,8 @@ async def naive_query(
     logger.info(f"Truncate {len(chunks)} to {len(maybe_trun_chunks)} chunks")
     section = "--New Chunk--\n".join([c["content"] for c in maybe_trun_chunks])
     if query_param.only_need_context:
-        return section
+        return {"context": section, "response": None}  # Return dict with context
+    
     sys_prompt_temp = PROMPTS["naive_rag_response"]
     sys_prompt = sys_prompt_temp.format(
         content_data=section, response_type=query_param.response_type
@@ -986,5 +988,4 @@ async def naive_query(
     if len(response)>len(sys_prompt):
         response = response[len(sys_prompt):].replace(sys_prompt,'').replace('user','').replace('model','').replace(query,'').replace('<system>','').replace('</system>','').strip()
     
-    return response
-
+    return {"context": section, "response": response}  # Return dict with context and response
